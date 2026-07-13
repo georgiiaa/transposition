@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 
 // transposition — a hermeneutic reading tool
 // After C.S. Lewis's essay of the same name: what happens when a richer
@@ -54,6 +54,18 @@ function AboutTab() {
   );
 }
 
+function syncUrl(reference, wordIdx) {
+  const params = new URLSearchParams();
+  if (reference) params.set("ref", reference);
+  if (wordIdx !== null && wordIdx !== undefined) params.set("word", wordIdx);
+  const qs = params.toString();
+  window.history.replaceState(
+    null,
+    "",
+    qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState("read");
   const [query, setQuery] = useState("");
@@ -63,10 +75,12 @@ export default function App() {
   const [selIdx, setSelIdx] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailState, setDetailState] = useState("idle");
+  const [copied, setCopied] = useState(false);
   const wordCache = useRef({});
+  const pendingWord = useRef(null);
 
-  const readVerse = async () => {
-    const q = query.trim();
+  const loadVerse = async (refString) => {
+    const q = refString.trim();
     if (!q) return;
     setVerseState("loading");
     setVerse(null);
@@ -82,6 +96,13 @@ export default function App() {
         setVerse(v);
         setVerseState("ok");
         wordCache.current = {};
+        syncUrl(v.reference, null);
+        // If this load came from a shared link with a word index, open it.
+        const idx = pendingWord.current;
+        pendingWord.current = null;
+        if (idx !== null && idx !== "" && v.words[Number(idx)]) {
+          openWord(Number(idx), v);
+        }
       }
     } catch (e) {
       setVerseErr(
@@ -91,9 +112,13 @@ export default function App() {
     }
   };
 
-  const openWord = async (idx) => {
-    if (!verse) return;
+  const readVerse = () => loadVerse(query);
+
+  const openWord = async (idx, verseObj) => {
+    const v = verseObj || verse;
+    if (!v) return;
     setSelIdx(idx);
+    syncUrl(v.reference, idx);
     const key = String(idx);
     if (wordCache.current[key]) {
       setDetail(wordCache.current[key]);
@@ -105,14 +130,54 @@ export default function App() {
     try {
       const d = await askClaude({
         kind: "word",
-        word: verse.words[idx],
-        verse: { reference: verse.reference, words: verse.words },
+        word: v.words[idx],
+        verse: { reference: v.reference, words: v.words },
       });
       wordCache.current[key] = d;
       setDetail(d);
       setDetailState("ok");
     } catch (e) {
       setDetailState("error");
+    }
+  };
+
+  // On first load, restore state from a shared link: ?ref=John+1:1&word=3
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) {
+      setQuery(ref);
+      pendingWord.current = params.get("word");
+      loadVerse(ref);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const share = async () => {
+    if (!verse) return;
+    const params = new URLSearchParams();
+    params.set("ref", verse.reference);
+    if (selIdx !== null) params.set("word", selIdx);
+    const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    const w = selIdx !== null ? verse.words[selIdx] : null;
+    const text = w
+      ? `${w.w} (${w.t}) — ${verse.reference}`
+      : `${verse.reference} · ${verse.language}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "transposition", text, url });
+        return;
+      } catch (e) {
+        if (e.name === "AbortError") return; // user closed the sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      // last resort: show the url in a prompt for manual copy
+      window.prompt("Copy this link:", url);
     }
   };
 
@@ -182,8 +247,13 @@ export default function App() {
 
             {verseState === "ok" && verse && (
               <div>
-                <div className="af-ref">
-                  {verse.reference} · {verse.language}
+                <div className="af-refrow">
+                  <div className="af-ref">
+                    {verse.reference} · {verse.language}
+                  </div>
+                  <button className="af-share" onClick={share}>
+                    {copied ? "link copied" : "share"}
+                  </button>
                 </div>
                 <div className="af-verse" dir={verse.direction || "ltr"}>
                   {verse.words.map((word, i) => (
@@ -194,7 +264,8 @@ export default function App() {
                         title={word.g}
                         onClick={() => openWord(i)}
                       >
-                        {word.w}
+                        <span className="af-w-orig">{word.w}</span>
+                        <span className="af-w-gloss">{word.g}</span>
                       </button>{" "}
                     </React.Fragment>
                   ))}

@@ -108,6 +108,27 @@ body {
   outline: 2px solid var(--ikb);
   outline-offset: 3px;
 }
+.af-refrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+.af-share {
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--ikb);
+}
+.af-share:focus-visible {
+  outline: 2px solid var(--ikb);
+  outline-offset: 3px;
+}
 .af-ref {
   font-family: "Helvetica Neue", Arial, sans-serif;
   font-size: 11px;
@@ -123,6 +144,10 @@ body {
 }
 .af-word {
   position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: top;
   background: none;
   border: none;
   padding: 0 2px;
@@ -131,6 +156,16 @@ body {
   cursor: pointer;
   border-bottom: 1px solid transparent;
   transition: color 120ms ease, border-color 120ms ease;
+}
+.af-w-gloss {
+  display: none;
+  font-family: "Helvetica Neue", Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--mist);
+  white-space: nowrap;
+  margin-top: 1px;
+  direction: ltr;
 }
 .af-word:hover {
   color: var(--ikb);
@@ -166,6 +201,15 @@ body {
 @media (hover: none) {
   .af-word::after {
     display: none;
+  }
+  .af-w-gloss {
+    display: block;
+  }
+  .af-verse {
+    line-height: 1.45;
+  }
+  .af-word {
+    margin-bottom: 12px;
   }
 }
 .af-translit {
